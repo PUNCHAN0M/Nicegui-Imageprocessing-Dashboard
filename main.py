@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 current_image = None
 cap = None
 timer = None
+camera_opened = False  # เพิ่มตัวแปรสถานะ
 
 # Image processing parameters
 brightness = 0
@@ -131,7 +132,7 @@ def update_frame():
 
 
 def open_camera():
-    global cap, timer, current_image
+    global cap, timer, current_image, camera_opened
     if timer:
         timer.deactivate()
     if cap:
@@ -145,11 +146,9 @@ def open_camera():
         )
         return
 
-    # Set resolution
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
 
-    # Warm-up frame
     ret, _ = cap.read()
     if not ret:
         ui.notify("Camera opened but cannot read frames.", type="error")
@@ -159,10 +158,11 @@ def open_camera():
 
     timer = ui.timer(0.05, update_frame)  # ~20 FPS
     ui.notify("Camera opened successfully", type="positive")
+    camera_opened = True
 
-    # Update camera controls
-    camera_controls.clear()
-    with camera_controls:
+    control_buttons.clear()
+    with control_buttons:
+
         ui.button("Capture Photo", on_click=capture_image).props("color=green")
         ui.button("Close Camera", on_click=close_camera).props("color=red")
 
@@ -171,24 +171,20 @@ def capture_image():
     global current_image, timer
     if current_image is not None:
         if timer:
-            timer.deactivate()  # Stop live feed
-        # Save high-quality version to original
+            timer.deactivate()
         original_ui.set_source(cv_to_base64(current_image, quality=95))
         update_process()
         ui.notify("Photo captured successfully", type="positive")
 
-    # Update buttons
-    camera_controls.clear()
-    with camera_controls:
-        ui.button("Resume Live", on_click=open_camera).props("color=blue")
-        ui.button(
-            "Re-Capture", on_click=lambda: open_camera() or capture_image()
-        ).props("color=orange")
+    # แก้: clear เฉพาะปุ่ม
+    control_buttons.clear()
+    with control_buttons:
+        ui.button("Re-Capture", on_click=open_camera).props("color=blue")
         ui.button("Close Camera", on_click=close_camera).props("color=red")
 
 
 def close_camera():
-    global cap, timer
+    global cap, timer, camera_opened
     if timer:
         timer.deactivate()
     if cap:
@@ -197,6 +193,7 @@ def close_camera():
     timer = None
     live_ui.set_source("")  # Clear live feed
     ui.notify("Camera closed", type="info")
+    camera_opened = False  # กล้องปิดแล้ว
 
     camera_controls.clear()
     with camera_controls:
@@ -299,9 +296,10 @@ with ui.row().classes("w-full gap-8"):
         ui.label("Input Image").classes("text-lg font-bold")
 
         camera_controls = ui.column()
-
         with camera_controls:
             ui.button("Open Camera", on_click=open_camera).props("color=blue")
+
+        control_buttons = ui.column()
 
         with ui.row():
             url_input = ui.input("Image URL").props('placeholder="https://"')
